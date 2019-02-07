@@ -273,16 +273,14 @@ end
 local function reloadConfig(paths)
     local doReload = false
     for _,file in pairs(paths) do
-        if file:sub(-4) == ".lua" then
-            print("A lua file changed, doing reload")
+	if file:sub(-9)  == "/init.lua" then
+            print(string.format("File: %s changed, reloading", file))
             doReload = true
         end
     end
     if not doReload then
-        print("No lua file changed, skipping reload")
         return
     end
-
     hs.reload()
 end
 
@@ -365,6 +363,12 @@ local function toggleInputDevice()
     end
 end
 
+local configFileWatcher = hs.pathwatcher.new(os.getenv("HOME") .. "/.hammerspoon/", reloadConfig)
+configFileWatcher:start()
+
+local appWatcher = hs.application.watcher.new(applicationWatcher)
+appWatcher:start()
+
 local skb = {
     {{"cmd"}, "t"},
     {{}, "padenter"},
@@ -416,9 +420,3 @@ for _hotkey, _fn in pairs(superFuncs) do
 end
 
 hs.hotkey.bind({"alt"}, "return", function() editWithEmacs() end)
-
-local configFileWatcher = hs.pathwatcher.new(os.getenv("HOME") .. "/.hammerspoon/", reloadConfig)
-configFileWatcher:start()
-
-local appWatcher = hs.application.watcher.new(applicationWatcher)
-appWatcher:start()
