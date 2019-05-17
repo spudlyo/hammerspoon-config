@@ -33,15 +33,19 @@ end
 -- Maybe bring up an alternate and focus or launch it.
 local function toggleApp(appinfo)
     local alternate = alternates[appinfo.name]
-    local app = hs.appfinder.appFromName(appinfo.name)
+    local app = hs.application.find(appinfo.name)
     if not app then
 	-- App isn't running.
-	if appinfo.launch then
+	if appinfo.launch or appinfo.alwayslaunch then
+	    print("Launching: " .. appinfo.name)
 	    if (appinfo.name == "iTerm2") then
 		-- naming is weird here.
 		hs.application.launchOrFocus("/Applications/iTerm.app")
 	    else
-		hs.application.launchOrFocus(appinfo.name)
+		if not hs.application.launchOrFocus(appinfo.name) then
+		    -- maybe it's a bundle id?
+		    hs.application.launchOrFocusByBundleID(appinfo.name)
+		end
 	    end
 	    if appinfo.rect ~= nil or appinfo.kbd ~= nil then
 		-- allow time app to start
@@ -76,6 +80,12 @@ local function toggleApp(appinfo)
 	    if alternate ~= nil then
 		toggleApp(alternate)
 	    end
+	end
+    end
+    if appinfo.alwayslaunch then
+	if not hs.application.launchOrFocus(appinfo.name) then
+	    -- maybe it's a bundle id?
+	    hs.application.launchOrFocusByBundleID(appinfo.name)
 	end
     end
 end
@@ -125,12 +135,6 @@ local function newEmacsClient(title)
     return (path .. tmux .. " %s " .. "\"" .. t .. ec .."\"")
 end
 
-local function newEmacsClientWindow()
-    local tmux_arg = "new-window -n EmacsServer"
-    local cmd = string.format(newEmacsClient("EmacsServer"), tmux_arg)
-    return runCommand(cmd)
-end
-
 local function newEmacsClientPane()
     local tmux_arg = "splitw -p 30 -b"
     local cmd = string.format(newEmacsClient("EmacsServer"), tmux_arg)
@@ -171,14 +175,12 @@ local function gotoHost(hostname)
 end
 
 local function applyLayout()
-    local laptop = "Color LCD"
     local main = "FS-270D"
     local windowLayout = {
-	{"Slack",         nil, main,   hs.layout.left50,    nil, nil},
 	{"Google Chrome", nil, main,   hs.layout.left50,    nil, nil},
 	{"Safari",        nil, main,   hs.layout.left50,    nil, nil},
+	{"Firefox",       nil, main,   hs.layout.left50,    nil, nil},
 	{"iTerm2",        nil, main,   hs.layout.right50,   nil, nil},
-	{"zoom.us",       nil, laptop, hs.layout.maximized, nil, nil},
     }
     -- Let's unhide all the apps, in case they're hidden.
     for _,v in pairs(windowLayout) do
@@ -264,8 +266,6 @@ local function editWithEmacs()
     hs.eventtap.keyStroke({"alt"}, "padenter")
     -- Switch focus to iTerm2
     focusMainWindow(termMainWindow)
-    -- Tell tmux to switch to the window labeled EmacsServer
---    gotoTmuxWindow("EmacsServer")
     -- You are now free to edit things.
 end
 
@@ -344,7 +344,7 @@ local function printWindowLayout()
 end
 
 local function toggleInputDevice()
-    local builtInMic = "MacBook Pro Microphone"
+    local builtInMic = "Podcast Input"
     local fancyMic = "Universal Audio Thunderbolt"
     local curInput = hs.audiodevice.defaultInputDevice()
 
@@ -369,13 +369,8 @@ configFileWatcher:start()
 local appWatcher = hs.application.watcher.new(applicationWatcher)
 appWatcher:start()
 
-local skb = {
-    {{"cmd"}, "t"},
-    {{}, "padenter"},
-}
-
 local tkb = {
-    {"tmux new -A -D -s darkstar"},
+    {"tmux new -A -D -s brick"},
     {{}, "padenter"}
 }
 
@@ -383,28 +378,22 @@ local mrt = {x=-1278,y=701,w=1278,h=704} -- Mail.app Rect
 local zrt = {x=415,y=201,h=660,w=880}    -- Zoom Rect
 
 -- Application switch & launch hotkeys.
-hyperFuncs['t'] = function() toggleApp({name="iTerm2",        launch=true,  kbd=tkb, rect=nil}) end
-hyperFuncs['w'] = function() toggleApp({name="Google Chrome", launch=true,  kbd=nil, rect=nil}) end
-hyperFuncs['c'] = function() toggleApp({name="Calendar",      launch=true,  kbd=nil, rect=nil}) end
-hyperFuncs['m'] = function() toggleApp({name="Mail",          launch=true,  kbd=nil, rect=mrt}) end
-hyperFuncs['s'] = function() toggleApp({name="Slack",         launch=true,  kbd=nil, rect=nil}) end
-hyperFuncs['i'] = function() toggleApp({name="iTunes",        launch=true,  kbd=nil, rect=nil}) end
-hyperFuncs['z'] = function() toggleApp({name="zoom.us",       launch=true,  kbd=nil, rect=zrt}) end
-hyperFuncs['h'] = function() toggleApp({name="Hammerspoon",   launch=true,  kbd=nil, rect=nil}) end
+hyperFuncs['t'] = function() toggleApp({name="iTerm2",        launch=true,       kbd=tkb, rect=nil}) end
+hyperFuncs['w'] = function() toggleApp({name="Google Chrome", launch=true,       kbd=nil, rect=nil}) end
+hyperFuncs['i'] = function() toggleApp({name="iTunes",        launch=true,       kbd=nil, rect=nil}) end
+hyperFuncs['z'] = function() toggleApp({name="zoom.us",       launch=true,       kbd=nil, rect=zrt}) end
+hyperFuncs['h'] = function() toggleApp({name="Hammerspoon",   launch=true,       kbd=nil, rect=nil}) end
+hyperFuncs['1'] = function() toggleApp({name="1Password 6",   alwayslaunch=true, kbd=nil, rect=nil}) end
+
 -- App alternates
-alternates["Mail"] = {name="Microsoft Outlook", launch=false}
-alternates["Google Chrome"] = {name="Safari", launch=false}
+alternates["Mail"]          = {name="Microsoft Outlook", launch=false}
+alternates["Google Chrome"] = {name="Firefox",           launch=true}
+
 -- Misc Hyper
 hyperFuncs['d'] = function() toggleDarkMode() end
-hyperFuncs['v'] = function() toggleVPN() end
 hyperFuncs['l'] = function() applyLayout() end
 -- SSH launchers
 superFuncs['e'] = function() gotoHost("eidolon") end
-superFuncs['s'] = function() gotoHost("st2") end
-superFuncs['r'] = function() gotoHost("cbrs") end
-superFuncs['b'] = function() gotoHost("cbbb") end
-superFuncs['f'] = function() gotoHost("cbfr") end
-superFuncs['d'] = function() gotoHost("cbdev") end
 -- Misc Super
 superFuncs['k'] = function() runCommand("/Users/spud/bin/ck.sh") end
 superFuncs['i'] = function() printWindowID() end
